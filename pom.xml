@@ -37,7 +37,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.stillpig.mavenproject1.App</mainClass>
+                            <mainClass>com.stillpig.babyonthecloud.customcode.EntryPointExtender</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

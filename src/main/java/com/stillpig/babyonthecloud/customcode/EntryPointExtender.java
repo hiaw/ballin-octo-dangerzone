@@ -15,6 +15,8 @@ public class EntryPointExtender extends JarEntryObject {
     public List<CustomCodeMethod> methods() {
         List<CustomCodeMethod> list = new ArrayList<CustomCodeMethod>();
         list.add(new MassObjectEditor());
+        list.add(new GrantPermissionForChild());
+        list.add(new RequestPermissionForChild());
         return list;
     }
 }
