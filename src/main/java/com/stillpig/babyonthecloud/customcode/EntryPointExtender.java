@@ -9,7 +9,7 @@ import java.util.List;
  * Hello world!
  *
  */
-public class App extends JarEntryObject {
+public class EntryPointExtender extends JarEntryObject {
 
     @Override
     public List<CustomCodeMethod> methods() {
