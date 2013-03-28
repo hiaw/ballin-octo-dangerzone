@@ -37,9 +37,9 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         try {
             PushService pushService = serviceProvider.getPushService();
 
-            String successMessage = "Congrates! " + from_user + "has given you permission to sync with " + child_code +".";
+            String successMessage = "Congrates! " + from_user + "has given you permission to sync with " + child_code + ".";
             String failMessage = "Sorry, " + from_user + "has denied you permission to sync with " + child_code + ".";
-            String message = permission? successMessage:failMessage;
+            String message = permission ? successMessage : failMessage;
             //get all tokens for John Doe
             List<String> users = new ArrayList<String>();
             users.add(to_user);
@@ -50,18 +50,18 @@ public class GrantPermissionForChild implements CustomCodeMethod {
             payload.put("sound", "customsound.wav");
             payload.put("alert", message);
             payload.put("other", "stuff");
-            
+
             //send a push notification to all of John Doe's devices
             pushService.sendPushToUsers(users, payload);
 
             return true;
-            
+
         } catch (PushServiceException ex) {
             Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
         } catch (ServiceNotActivatedException ex) {
             Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
         }
-        
+
         return false;
     }
 
@@ -88,7 +88,7 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         try {
 
             boolean permission = false;
-            
+
             boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code, permission);
 
 
@@ -96,7 +96,7 @@ public class GrantPermissionForChild implements CustomCodeMethod {
 
 
 
-            
+
 //
 //            result = dataService.readObjects("users", query);
 //            result = dataService.readObjects("users", query, 1); // Expanded relationship

@@ -21,7 +21,7 @@ import java.util.logging.Logger;
  *
  * @author danielchong
  */
-public class RequestPermissionForChild implements CustomCodeMethod{
+public class RequestPermissionForChild implements CustomCodeMethod {
 
     public String getMethodName() {
         return "request_permission_for_child";
@@ -31,11 +31,11 @@ public class RequestPermissionForChild implements CustomCodeMethod{
         return Arrays.asList("child_code", "from_user");
     }
 
-        private boolean sentPushNotificationToUser(SDKServiceProvider serviceProvider, String to_user, String from_user, String child_code) {
+    private boolean sentPushNotificationToUser(SDKServiceProvider serviceProvider, String to_user, String from_user, String child_code) {
         try {
             PushService pushService = serviceProvider.getPushService();
 
-            String message = from_user + "is requesting permission to sync with " + child_code +".";
+            String message = from_user + "is requesting permission to sync with " + child_code + ".";
             //get all tokens for John Doe
             List<String> users = new ArrayList<String>();
             users.add(to_user);
@@ -45,21 +45,21 @@ public class RequestPermissionForChild implements CustomCodeMethod{
             payload.put("badge", "1");
             payload.put("sound", "customsound.wav");
             payload.put("alert", message);
-            
+
             //send a push notification to all of John Doe's devices
             pushService.sendPushToUsers(users, payload);
 
             return true;
-            
+
         } catch (PushServiceException ex) {
             Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
         } catch (ServiceNotActivatedException ex) {
             Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
         }
-        
+
         return false;
     }
-        
+
     public ResponseToProcess execute(ProcessedAPIRequest request, SDKServiceProvider serviceProvider) {
         String child_code = request.getParams().get("child_code");
         String from_user = request.getParams().get("from_user");
@@ -75,49 +75,36 @@ public class RequestPermissionForChild implements CustomCodeMethod{
 
         // build a query
         List<SMCondition> query = new ArrayList<SMCondition>();
-//        query.add(new SMEquals("username", new SMString(username)));
-//        query.add(new SMNotEqual("friends", new SMString(username)));
+        query.add(new SMEquals("child_code", new SMString(child_code)));
 
-//        dataService.
         // execute the query
         List<SMObject> result;
         try {
-            boolean permission = false;
+            boolean childFound = false;
 
 //            boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code);
-//
-//            
-//            result = dataService.readObjects("users", query);
-//            result = dataService.readObjects("users", query, 1); // Expanded relationship
-//
-//            SMObject userObject;
-//
-//            // user was in the datastore, so check the score and update if necessary
-//            if (result != null && result.size() == 1) {
-//                userObject = result.get(0);
-//            } else {
-//                Map<String, SMValue> userMap = new HashMap<String, SMValue>();
-//                userMap.put("username", new SMString(username));
-//                userMap.put("score", new SMInt(0L));
-//                newUser = true;
-//                userObject = new SMObject(userMap);
-//            }
-//
-//            SMValue oldScore = userObject.getValue().get("score");
-//
-//            // if it was a high score, update the datastore
-//            List<SMUpdate> update = new ArrayList<SMUpdate>();
-//            if (oldScore == null || ((SMInt) oldScore).getValue() < score) {
-//                update.add(new SMSet("score", new SMInt(score)));
-//                permission = true;
-//            }
+            
+            result = dataService.readObjects("child", query);
 
+            SMObject childObject;
+            String childName = null;
+
+            if (result != null && result.size() == 1) {
+                childObject = result.get(0);
+                childName = childObject.getValue().get("first_name").toString()+childObject.getValue().get("last_name").toString();
+                childFound = true;
+            }
 
             Map<String, Object> returnMap = new HashMap<String, Object>();
-            returnMap.put("permission", permission);
-            returnMap.put("child_code", child_code);
-            return new ResponseToProcess(HttpURLConnection.HTTP_OK, returnMap);
             
+            if (childFound) {
+                returnMap.put("status", "Child " + childName + " was found in the system.");
+            } else {
+                returnMap.put("status", "Sorry, child was not found in system.");
+            }
+            
+            return new ResponseToProcess(HttpURLConnection.HTTP_OK, returnMap);
+
 //        } catch (InvalidSchemaException e) {
 //            HashMap<String, String> errMap = new HashMap<String, String>();
 //            errMap.put("error", "invalid_schema");
@@ -135,5 +122,4 @@ public class RequestPermissionForChild implements CustomCodeMethod{
             return new ResponseToProcess(HttpURLConnection.HTTP_INTERNAL_ERROR, errMap); // http 500 - internal server error
         }
     }
-    
 }
