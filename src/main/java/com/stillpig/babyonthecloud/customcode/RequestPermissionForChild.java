@@ -82,39 +82,37 @@ public class RequestPermissionForChild implements CustomCodeMethod {
         try {
             boolean childFound = false;
 
-//            boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code);
-            
             result = dataService.readObjects("child", query);
 
             SMObject childObject;
             String childName = null;
+            String to_user = null;
 
             if (result != null && result.size() == 1) {
                 childObject = result.get(0);
-                childName = childObject.getValue().get("first_name").toString()+childObject.getValue().get("last_name").toString();
+                childName = childObject.getValue().get("first_name").toString() + " "
+                        + childObject.getValue().get("last_name").toString();
+                to_user = childObject.getValue().get("sm_user").toString();
                 childFound = true;
             }
 
             Map<String, Object> returnMap = new HashMap<String, Object>();
-            
+
             if (childFound) {
-                returnMap.put("status", "Child " + childName + " was found in the system.");
+                
+                boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code);
+
+                if (!sentPushNotification) {
+                    // Do something to keep trying to sent push notification to user.
+                }
+                
+                returnMap.put("status", "Your request has been sent to the person responsible of  " + childName + ". You will receive a notification when this person approves your request.");
             } else {
                 returnMap.put("status", "Sorry, child was not found in system.");
             }
-            
+
             return new ResponseToProcess(HttpURLConnection.HTTP_OK, returnMap);
 
-//        } catch (InvalidSchemaException e) {
-//            HashMap<String, String> errMap = new HashMap<String, String>();
-//            errMap.put("error", "invalid_schema");
-//            errMap.put("detail", e.toString());
-//            return new ResponseToProcess(HttpURLConnection.HTTP_INTERNAL_ERROR, errMap); // http 500 - internal server error
-//        } catch (DatastoreException e) {
-//            HashMap<String, String> errMap = new HashMap<String, String>();
-//            errMap.put("error", "datastore_exception");
-//            errMap.put("detail", e.toString());
-//            return new ResponseToProcess(HttpURLConnection.HTTP_INTERNAL_ERROR, errMap); // http 500 - internal server error
         } catch (Exception e) {
             HashMap<String, String> errMap = new HashMap<String, String>();
             errMap.put("error", "unknown");
