@@ -12,8 +12,6 @@ import com.stackmob.core.customcode.CustomCodeMethod;
 import com.stackmob.core.rest.ProcessedAPIRequest;
 import com.stackmob.core.rest.ResponseToProcess;
 import com.stackmob.sdkapi.*;
-import com.stackmob.sdkapi.PushService.TokenAndType;
-import com.stackmob.sdkapi.PushService.TokenType;
 import java.net.HttpURLConnection;
 import java.util.*;
 import java.util.logging.Level;
@@ -65,6 +63,114 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         return false;
     }
 
+    private long getSecondsSince1970() {
+        return System.currentTimeMillis() / 1000L;
+    }
+
+    private SMObject getChildObject(DataService dataService, String child_code) {
+        try {
+            List<SMCondition> query = new ArrayList<SMCondition>();
+            query.add(new SMEquals("child_code", new SMString(child_code)));
+
+            List<SMObject> result = dataService.readObjects("child", query);
+
+            SMObject childObject = result.get(0);
+
+            return childObject;
+        } catch (InvalidSchemaException ex) {
+            Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (DatastoreException ex) {
+            Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        return null;
+    }
+    private void createPermissionInFromUser(DataService dataService, String child_id, String permission_id, String to_user, String from_user) {
+
+        try {
+            List<SMCondition> query = new ArrayList<SMCondition>();
+            query.add(new SMEquals("username", new SMString(from_user)));
+            List<SMObject> result = dataService.readObjects("user", query);
+            SMObject userObject = result.get(0);
+            SMList<SMString> permissionToList = (SMList<SMString>) userObject.getValue().get("permissions_to");
+
+            List<SMUpdate> toUserMap = new ArrayList<SMUpdate>();
+
+            List<SMString> newPermissions = permissionToList.getValue();
+            newPermissions.add(new SMString(permission_id));
+            toUserMap.add(new SMSet("permissions_from", new SMList<SMString>(newPermissions)));
+
+            dataService.updateObject("user", from_user, toUserMap);
+
+        } catch (InvalidSchemaException ex) {
+            Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (DatastoreException ex) {
+            Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    private void createPermissionInToUser(DataService dataService, String child_id, String permission_id, String to_user, String from_user) {
+
+        try {
+            List<SMCondition> query = new ArrayList<SMCondition>();
+            query.add(new SMEquals("username", new SMString(to_user)));
+            List<SMObject> result = dataService.readObjects("user", query);
+            SMObject userObject = result.get(0);
+            SMList<SMString> permissionFromList = (SMList<SMString>) userObject.getValue().get("permissions_from");
+            SMList<SMString> childReadPermissionList = (SMList<SMString>) userObject.getValue().get("child_read_permission");
+            SMList<SMString> childWritePermissionList = (SMList<SMString>) userObject.getValue().get("child_write_permission");
+
+            List<SMUpdate> toUserMap = new ArrayList<SMUpdate>();
+
+            List<SMString> newWritePermissions = permissionFromList.getValue();
+            newWritePermissions.add(new SMString(permission_id));
+            toUserMap.add(new SMSet("permissions_from", new SMList<SMString>(newWritePermissions)));
+
+            List<SMString> newChildReadPermissions = childReadPermissionList.getValue();
+            newChildReadPermissions.add(new SMString(child_id));
+            toUserMap.add(new SMSet("child_read_permission", new SMList<SMString>(newChildReadPermissions)));
+
+            List<SMString> newChildWritePermissions = childWritePermissionList.getValue();
+            newChildWritePermissions.add(new SMString(child_id));
+            toUserMap.add(new SMSet("child_read_permission", new SMList<SMString>(newChildWritePermissions)));
+
+            dataService.updateObject("user", to_user, toUserMap);
+
+        } catch (InvalidSchemaException ex) {
+            Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (DatastoreException ex) {
+            Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    private void createPermissionInChild(DataService dataService, SMObject childObject, String permission_id, String to_user) {
+        try {
+            String child_id = childObject.getValue().get("child_id").toString();
+            SMList<SMString> readPermissionList = (SMList<SMString>) childObject.getValue().get("user_read_permission");
+            SMList<SMString> writePermissionList = (SMList<SMString>) childObject.getValue().get("user_write_permission");
+            SMList<SMString> permissionList = (SMList<SMString>) childObject.getValue().get("permissions");
+
+            // update permission list on child
+            List<SMUpdate> childMap = new ArrayList<SMUpdate>();
+            List<SMString> newReadPermissions = readPermissionList.getValue();
+            newReadPermissions.add(new SMString(to_user));
+            childMap.add(new SMSet("user_read_permission", new SMList<SMString>(newReadPermissions)));
+
+            List<SMString> newWritePermissions = writePermissionList.getValue();
+            newWritePermissions.add(new SMString(to_user));
+            childMap.add(new SMSet("user_write_permission", new SMList<SMString>(newWritePermissions)));
+
+            List<SMString> newPermissionsList = writePermissionList.getValue();
+            newPermissionsList.add(new SMString(to_user));
+            childMap.add(new SMSet("user_write_permission", new SMList<SMString>(newPermissionsList)));
+            dataService.updateObject("child", child_id, childMap);
+        } catch (InvalidSchemaException ex) {
+            Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (DatastoreException ex) {
+            Logger.getLogger(GrantPermissionForChild.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
     public ResponseToProcess execute(ProcessedAPIRequest request, SDKServiceProvider serviceProvider) {
         String child_code = request.getParams().get("child_code");
         String from_user = request.getParams().get("from_user");
@@ -73,55 +179,39 @@ public class GrantPermissionForChild implements CustomCodeMethod {
 
         if (from_user == null || from_user.isEmpty() || child_code == null || child_code.isEmpty() || to_user == null || to_user.isEmpty() || permissionString == null || permissionString.isEmpty()) {
             HashMap<String, String> errParams = new HashMap<String, String>();
-            errParams.put("error", "one or more of the parameters was empty or null");
+            errParams.put("error", "one or more parameters were empty or null");
             return new ResponseToProcess(HttpURLConnection.HTTP_BAD_REQUEST, errParams); // http 400 - bad request
         }
 
-        // get the datastore service and assemble the query
         DataService dataService = serviceProvider.getDataService();
 
-        // build a query
-        List<SMCondition> query = new ArrayList<SMCondition>();
+        SMObject childObject = getChildObject(dataService, child_code);
+        String child_id = childObject.getValue().get("child_id").toString();
 
-//        dataService.
-        List<SMObject> result;
         try {
 
             boolean permission = false;
 
+            // create new permission object
+            Map<String, SMValue> permissionMap = new HashMap<String, SMValue>();
+            permissionMap.put("child", new SMString(child_id));
+            permissionMap.put("from_user", new SMString(from_user));
+            permissionMap.put("to_user", new SMString(to_user));
+            permissionMap.put("approved_date", new SMInt(getSecondsSince1970()));
+            permissionMap.put("permission_type", new SMInt(Long.parseLong(permissionString)));
+            SMObject permissionObject = new SMObject(permissionMap);
+            SMObject createdPermissionObject = dataService.createObject("permission", permissionObject);
+
+
+            String permission_id = createdPermissionObject.getValue().get("permission_id").toString();
+
+            createPermissionInChild(dataService, childObject, permission_id, to_user);
+
+            createPermissionInToUser(dataService, child_id, permission_id, to_user, from_user);
+            
+            createPermissionInFromUser(dataService, child_id, permission_id, to_user, from_user);
+
             boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code, permission);
-
-
-
-
-
-
-
-//
-//            result = dataService.readObjects("users", query);
-//            result = dataService.readObjects("users", query, 1); // Expanded relationship
-//
-//            SMObject userObject;
-//
-//            // user was in the datastore, so check the score and update if necessary
-//            if (result != null && result.size() == 1) {
-//                userObject = result.get(0);
-//            } else {
-//                Map<String, SMValue> userMap = new HashMap<String, SMValue>();
-//                userMap.put("username", new SMString(username));
-//                userMap.put("score", new SMInt(0L));
-//                newUser = true;
-//                userObject = new SMObject(userMap);
-//            }
-//
-//            SMValue oldScore = userObject.getValue().get("score");
-//
-//            // if it was a high score, update the datastore
-//            List<SMUpdate> update = new ArrayList<SMUpdate>();
-//            if (oldScore == null || ((SMInt) oldScore).getValue() < score) {
-//                update.add(new SMSet("score", new SMInt(score)));
-//                permission = true;
-//            }
 
 
             Map<String, Object> returnMap = new HashMap<String, Object>();
@@ -130,16 +220,6 @@ public class GrantPermissionForChild implements CustomCodeMethod {
             returnMap.put("child_code", child_code);
             return new ResponseToProcess(HttpURLConnection.HTTP_OK, returnMap);
 
-//        } catch (InvalidSchemaException e) {
-//            HashMap<String, String> errMap = new HashMap<String, String>();
-//            errMap.put("error", "invalid_schema");
-//            errMap.put("detail", e.toString());
-//            return new ResponseToProcess(HttpURLConnection.HTTP_INTERNAL_ERROR, errMap); // http 500 - internal server error
-//        } catch (DatastoreException e) {
-//            HashMap<String, String> errMap = new HashMap<String, String>();
-//            errMap.put("error", "datastore_exception");
-//            errMap.put("detail", e.toString());
-//            return new ResponseToProcess(HttpURLConnection.HTTP_INTERNAL_ERROR, errMap); // http 500 - internal server error
         } catch (Exception e) {
             HashMap<String, String> errMap = new HashMap<String, String>();
             errMap.put("error", "unknown");

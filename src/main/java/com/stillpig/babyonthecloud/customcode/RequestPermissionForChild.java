@@ -4,8 +4,6 @@
  */
 package com.stillpig.babyonthecloud.customcode;
 
-import com.stackmob.core.DatastoreException;
-import com.stackmob.core.InvalidSchemaException;
 import com.stackmob.core.PushServiceException;
 import com.stackmob.core.ServiceNotActivatedException;
 import com.stackmob.core.customcode.CustomCodeMethod;
@@ -40,13 +38,13 @@ public class RequestPermissionForChild implements CustomCodeMethod {
             List<String> users = new ArrayList<String>();
             users.add(to_user);
 
-            //send a push notification just to John Doe's iOS device
+            //send a push notification just to user's iOS device
             Map<String, String> payload = new HashMap<String, String>();
             payload.put("badge", "1");
             payload.put("sound", "customsound.wav");
             payload.put("alert", message);
 
-            //send a push notification to all of John Doe's devices
+            //send a push notification to all of user's devices
             pushService.sendPushToUsers(users, payload);
 
             return true;
@@ -106,7 +104,8 @@ public class RequestPermissionForChild implements CustomCodeMethod {
                     // Do something to keep trying to sent push notification to user.
                 }
                 
-                returnMap.put("status", "Your request has been sent to the person responsible of  " + childName + ". You will receive a notification when this person approves your request.");
+                returnMap.put("status", "Your request has been sent to the person responsible of  " + childName + 
+                        ". You will receive a notification when this person approves your request.");
             } else {
                 returnMap.put("status", "Sorry, child was not found in system.");
             }
