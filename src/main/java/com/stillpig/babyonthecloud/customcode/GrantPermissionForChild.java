@@ -116,13 +116,18 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         updateMap.add(new SMSet(parameter, new SMList<SMString>(newList)));
     }
 
-    private void createPermissionInFromUser(DataService dataService, String child_id, String permission_id, String to_user, String from_user) {
+    private SMObject getUser(String to_user, DataService dataService) throws DatastoreException, InvalidSchemaException {
+        List<SMCondition> query = new ArrayList<SMCondition>();
+        query.add(new SMEquals(USERNAME, new SMString(to_user)));
+        List<SMObject> result = dataService.readObjects(USER, query);
+        SMObject userObject = result.get(0);
+        return userObject;
+    }
+    
+    private void createPermissionInFromUser(DataService dataService, String permission_id, String from_user) {
 
         try {
-            List<SMCondition> query = new ArrayList<SMCondition>();
-            query.add(new SMEquals(USERNAME, new SMString(from_user)));
-            List<SMObject> result = dataService.readObjects(USER, query);
-            SMObject userObject = result.get(0);
+            SMObject userObject = getUser(from_user, dataService);
             SMList<SMString> permissionToList = (SMList<SMString>) userObject.getValue().get(USER_PERMISSIONS_TO);
 
             List<SMUpdate> toUserMap = new ArrayList<SMUpdate>();
@@ -138,22 +143,23 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         }
     }
 
-    private void createPermissionInToUser(DataService dataService, String child_id, String permission_id, String to_user, String from_user) {
+    private void createPermissionInToUser(DataService dataService, String child_id, String permission_id, String to_user, String from_user, boolean permitted) {
 
         try {
-            List<SMCondition> query = new ArrayList<SMCondition>();
-            query.add(new SMEquals(USERNAME, new SMString(to_user)));
-            List<SMObject> result = dataService.readObjects(USER, query);
-            SMObject userObject = result.get(0);
+            SMObject userObject = getUser(to_user, dataService);
             SMList<SMString> permissionFromList = (SMList<SMString>) userObject.getValue().get(USER_PERMISSIONS_FROM);
-            SMList<SMString> childReadPermissionList = (SMList<SMString>) userObject.getValue().get(USER_CHILD_READ_PERMISSIONS);
-            SMList<SMString> childWritePermissionList = (SMList<SMString>) userObject.getValue().get(USER_CHILD_WRITE_PERMISSIONS);
 
             List<SMUpdate> toUserMap = new ArrayList<SMUpdate>();
 
             insertIntoList(permissionFromList, permission_id, toUserMap, USER_PERMISSIONS_FROM);
-            insertIntoList(childReadPermissionList, child_id, toUserMap, USER_CHILD_READ_PERMISSIONS);
-            insertIntoList(childWritePermissionList, child_id, toUserMap, USER_CHILD_WRITE_PERMISSIONS);
+
+            if (permitted) {
+                SMList<SMString> childReadPermissionList = (SMList<SMString>) userObject.getValue().get(USER_CHILD_READ_PERMISSIONS);
+                SMList<SMString> childWritePermissionList = (SMList<SMString>) userObject.getValue().get(USER_CHILD_WRITE_PERMISSIONS);
+
+                insertIntoList(childReadPermissionList, child_id, toUserMap, USER_CHILD_READ_PERMISSIONS);
+                insertIntoList(childWritePermissionList, child_id, toUserMap, USER_CHILD_WRITE_PERMISSIONS);
+            }
 
             dataService.updateObject(USER, to_user, toUserMap);
 
@@ -226,19 +232,21 @@ public class GrantPermissionForChild implements CustomCodeMethod {
 
         try {
 
-            boolean permission = false;
+            boolean permitted = Integer.parseInt(permissionString) == 1;
 
             String permission_id = createPermissionObject(child_id, from_user, to_user, permissionString, dataService);
             logger.debug("Permission created: " + permission_id);
 
-            createPermissionInChild(logger, dataService, childObject, permission_id, to_user);
-            createPermissionInToUser(dataService, child_id, permission_id, to_user, from_user);
-            createPermissionInFromUser(dataService, child_id, permission_id, to_user, from_user);
+            if (permitted) {
+                createPermissionInChild(logger, dataService, childObject, permission_id, to_user);
+            }
+            createPermissionInToUser(dataService, child_id, permission_id, to_user, from_user, true);
+            createPermissionInFromUser(dataService, permission_id, from_user);
 
-            boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code, permission);
+            boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code, permitted);
 
             Map<String, Object> returnMap = new HashMap<String, Object>();
-            returnMap.put(PERMISSION, permission);
+            returnMap.put(PERMISSION, permitted);
             returnMap.put(PERMISSION_FROM_USER, from_user);
             returnMap.put(CHILD_CODE, child_code);
             return new ResponseToProcess(HttpURLConnection.HTTP_OK, returnMap);
