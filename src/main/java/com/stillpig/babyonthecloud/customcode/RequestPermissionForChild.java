@@ -20,13 +20,21 @@ import java.util.logging.Logger;
  * @author danielchong
  */
 public class RequestPermissionForChild implements CustomCodeMethod {
+    public static final String CHILD = "child";
+    public static final String CHILD_CODE = "child_code";
+    public static final String FIRST_NAME = "first_name";
+    public static final String FROM_USER = "from_user";
+    public static final String LAST_NAME = "last_name";
+    public static final String MAIN_USERS = "main_users";
+    public static final String USER = "user";
+    public static final String USERNAME = "username";
 
     public String getMethodName() {
         return "request_permission_for_child";
     }
 
     public List<String> getParams() {
-        return Arrays.asList("child_code", "from_user");
+        return Arrays.asList(CHILD_CODE, FROM_USER);
     }
 
     private boolean sentPushNotificationToUser(SDKServiceProvider serviceProvider, String to_user, String from_user, String child_code) {
@@ -59,8 +67,8 @@ public class RequestPermissionForChild implements CustomCodeMethod {
     }
 
     public ResponseToProcess execute(ProcessedAPIRequest request, SDKServiceProvider serviceProvider) {
-        String child_code = request.getParams().get("child_code");
-        String from_user = request.getParams().get("from_user");
+        String child_code = request.getParams().get(CHILD_CODE);
+        String from_user = request.getParams().get(FROM_USER);
 
         if (from_user == null || from_user.isEmpty() || child_code == null || child_code.isEmpty()) {
             HashMap<String, String> errParams = new HashMap<String, String>();
@@ -73,14 +81,14 @@ public class RequestPermissionForChild implements CustomCodeMethod {
 
         // build a query
         List<SMCondition> query = new ArrayList<SMCondition>();
-        query.add(new SMEquals("child_code", new SMString(child_code)));
+        query.add(new SMEquals(CHILD_CODE, new SMString(child_code)));
 
         // execute the query
         List<SMObject> result = null;
         try {
             boolean childFound = false;
 
-            result = dataService.readObjects("child", query);
+            result = dataService.readObjects(CHILD, query);
 
             SMObject childObject;
             String childName = null;
@@ -90,30 +98,30 @@ public class RequestPermissionForChild implements CustomCodeMethod {
                 childFound = true;
 
                 childObject = result.get(0);
-                childName = childObject.getValue().get("first_name").toString() + " "
-                        + childObject.getValue().get("last_name").toString();
-                SMList<SMString> main_users = (SMList<SMString>) childObject.getValue().get("main_users");
+                childName = childObject.getValue().get(FIRST_NAME).toString() + " "
+                        + childObject.getValue().get(LAST_NAME).toString();
+                SMList<SMString> main_users = (SMList<SMString>) childObject.getValue().get(MAIN_USERS);
                 SMString to_user = main_users.getValue().get(0);
 
                 // Find out the name of main user.
                 List<SMCondition> query2 = new ArrayList<SMCondition>();
-                query2.add(new SMEquals("username", to_user));
-                List<SMObject> result2 = dataService.readObjects("user", query2);
+                query2.add(new SMEquals(USERNAME, to_user));
+                List<SMObject> result2 = dataService.readObjects(USER, query2);
 
                 SMObject foundUser = result2.get(0);
-                to_user_name = foundUser.getValue().get("first_name").toString() + " "
-                        + foundUser.getValue().get("last_name").toString();
+                to_user_name = foundUser.getValue().get(FIRST_NAME).toString() + " "
+                        + foundUser.getValue().get(LAST_NAME).toString();
             }
 
             Map<String, Object> returnMap = new HashMap<String, Object>();
 
             if (childFound) {
 
-//                boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code);
+                boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user_name, from_user, child_code);
 
-//                if (!sentPushNotification) {
+                if (!sentPushNotification) {
                 // Do something to keep trying to sent push notification to user.
-//                }
+                }
 
                 returnMap.put("status", "Your request has been sent to the person responsible, " + to_user_name + ", for " + childName
                         + ". You will receive a notification when this person approves your request.");
