@@ -23,6 +23,10 @@ import java.util.logging.Logger;
  */
 public class GrantPermissionForChild implements CustomCodeMethod {
 
+    public enum PermissionType {
+        READ_WRITE, READ_ONLY, NOT_PERMITTED;
+    }
+
     public static final String CHILD = "child";
     public static final String CHILD_CODE = "child_code";
     public static final String CHILD_ID = "child_id";
@@ -50,13 +54,23 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         return Arrays.asList(PERMISSION, PERMISSION_FROM_USER, PERMISSION_TO_USER, CHILD_CODE);
     }
 
-    private boolean sentPushNotificationToUser(SDKServiceProvider serviceProvider, String to_user, String from_user, String child_code, boolean permission) {
+    private boolean sentPushNotificationToUser(SDKServiceProvider serviceProvider, String to_user, String from_user, String child_code, PermissionType permission) {
         try {
             PushService pushService = serviceProvider.getPushService();
 
-            String successMessage = "Congrates! " + from_user + "has given you permission to sync with " + child_code + ".";
-            String failMessage = "Sorry, " + from_user + "has denied you permission to sync with " + child_code + ".";
-            String message = permission ? successMessage : failMessage;
+            String message = null;
+            
+            switch (permission) {
+                case READ_ONLY:
+                    message = "Congrates! " + from_user + "has given you permission to sync with " + child_code + ".";
+                    break;
+                case READ_WRITE:
+                    message = "Congrates! " + from_user + "has given you read permission for " + child_code + ".";
+                    break;
+                case NOT_PERMITTED:
+                    message = "Sorry, " + from_user + "has denied you permission to sync with " + child_code + ".";
+                    break;
+            }
             //get all tokens for John Doe
             List<String> users = new ArrayList<String>();
             users.add(to_user);
@@ -123,7 +137,7 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         SMObject userObject = result.get(0);
         return userObject;
     }
-    
+
     private void createPermissionInFromUser(DataService dataService, String permission_id, String from_user) {
 
         try {
@@ -143,7 +157,7 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         }
     }
 
-    private void createPermissionInToUser(DataService dataService, String child_id, String permission_id, String to_user, String from_user, boolean permitted) {
+    private void createPermissionInToUser(DataService dataService, String child_id, String permission_id, String to_user, String from_user, PermissionType permission) {
 
         try {
             SMObject userObject = getUser(to_user, dataService);
@@ -153,12 +167,16 @@ public class GrantPermissionForChild implements CustomCodeMethod {
 
             insertIntoList(permissionFromList, permission_id, toUserMap, USER_PERMISSIONS_FROM);
 
-            if (permitted) {
-                SMList<SMString> childReadPermissionList = (SMList<SMString>) userObject.getValue().get(USER_CHILD_READ_PERMISSIONS);
-                SMList<SMString> childWritePermissionList = (SMList<SMString>) userObject.getValue().get(USER_CHILD_WRITE_PERMISSIONS);
-
-                insertIntoList(childReadPermissionList, child_id, toUserMap, USER_CHILD_READ_PERMISSIONS);
-                insertIntoList(childWritePermissionList, child_id, toUserMap, USER_CHILD_WRITE_PERMISSIONS);
+            switch (permission) {
+                case READ_WRITE:
+                    SMList<SMString> childWritePermissionList = (SMList<SMString>) userObject.getValue().get(USER_CHILD_WRITE_PERMISSIONS);
+                    insertIntoList(childWritePermissionList, child_id, toUserMap, USER_CHILD_WRITE_PERMISSIONS);
+                case READ_ONLY:
+                    SMList<SMString> childReadPermissionList = (SMList<SMString>) userObject.getValue().get(USER_CHILD_READ_PERMISSIONS);
+                    insertIntoList(childReadPermissionList, child_id, toUserMap, USER_CHILD_READ_PERMISSIONS);
+                    break;
+                case NOT_PERMITTED:
+                    break;
             }
 
             dataService.updateObject(USER, to_user, toUserMap);
@@ -170,7 +188,7 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         }
     }
 
-    private void createPermissionInChild(LoggerService logger, DataService dataService, SMObject childObject, String permission_id, String to_user) {
+    private void createPermissionInChild(LoggerService logger, DataService dataService, SMObject childObject, String permission_id, String to_user, PermissionType permission) {
         try {
             String child_id = childObject.getValue().get(CHILD_ID).toString();
             SMList<SMString> readPermissionList = (SMList<SMString>) childObject.getValue().get(CHILD_USER_READ_PERMISSIONS);
@@ -183,9 +201,16 @@ public class GrantPermissionForChild implements CustomCodeMethod {
             // update permission list on child
             List<SMUpdate> childMap = new ArrayList<SMUpdate>();
 
-            insertIntoList(readPermissionList, to_user, childMap, CHILD_USER_READ_PERMISSIONS);
-            insertIntoList(writePermissionList, to_user, childMap, CHILD_USER_WRITE_PERMISSIONS);
-            insertIntoList(permissionList, permission_id, childMap, CHILD_PERMISSIONS);
+            switch (permission) {
+                case READ_WRITE:
+                    insertIntoList(writePermissionList, to_user, childMap, CHILD_USER_WRITE_PERMISSIONS);
+                case READ_ONLY:
+                    insertIntoList(readPermissionList, to_user, childMap, CHILD_USER_READ_PERMISSIONS);
+                    insertIntoList(permissionList, permission_id, childMap, CHILD_PERMISSIONS);
+                    break;
+                case NOT_PERMITTED:
+                    break;
+            }
 
             dataService.updateObject(CHILD, child_id, childMap);
 
@@ -231,22 +256,20 @@ public class GrantPermissionForChild implements CustomCodeMethod {
         String child_id = childObject.getValue().get(CHILD_ID).toString();
 
         try {
-
-            boolean permitted = Integer.parseInt(permissionString) == 1;
+            int p = Integer.valueOf(permissionString);
+            PermissionType permission = PermissionType.values()[p];
 
             String permission_id = createPermissionObject(child_id, from_user, to_user, permissionString, dataService);
             logger.debug("Permission created: " + permission_id);
 
-            if (permitted) {
-                createPermissionInChild(logger, dataService, childObject, permission_id, to_user);
-            }
-            createPermissionInToUser(dataService, child_id, permission_id, to_user, from_user, true);
+            createPermissionInChild(logger, dataService, childObject, permission_id, to_user, permission);
+            createPermissionInToUser(dataService, child_id, permission_id, to_user, from_user, permission);
             createPermissionInFromUser(dataService, permission_id, from_user);
 
-            boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code, permitted);
+            boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code, permission);
 
             Map<String, Object> returnMap = new HashMap<String, Object>();
-            returnMap.put(PERMISSION, permitted);
+            returnMap.put(PERMISSION, permission);
             returnMap.put(PERMISSION_FROM_USER, from_user);
             returnMap.put(CHILD_CODE, child_code);
             return new ResponseToProcess(HttpURLConnection.HTTP_OK, returnMap);
