@@ -76,7 +76,7 @@ public class RequestPermissionForChild implements CustomCodeMethod {
         query.add(new SMEquals("child_code", new SMString(child_code)));
 
         // execute the query
-        List<SMObject> result;
+        List<SMObject> result = null;
         try {
             boolean childFound = false;
 
@@ -84,28 +84,39 @@ public class RequestPermissionForChild implements CustomCodeMethod {
 
             SMObject childObject;
             String childName = null;
-            String to_user = null;
+            String to_user_name = null;
 
             if (result != null && result.size() == 1) {
+                childFound = true;
+
                 childObject = result.get(0);
                 childName = childObject.getValue().get("first_name").toString() + " "
                         + childObject.getValue().get("last_name").toString();
-                to_user = childObject.getValue().get("sm_user").toString();
-                childFound = true;
+                SMList<SMString> main_users = (SMList<SMString>) childObject.getValue().get("main_users");
+                SMString to_user = main_users.getValue().get(0);
+
+                // Find out the name of main user.
+                List<SMCondition> query2 = new ArrayList<SMCondition>();
+                query2.add(new SMEquals("username", to_user));
+                List<SMObject> result2 = dataService.readObjects("user", query2);
+
+                SMObject foundUser = result2.get(0);
+                to_user_name = foundUser.getValue().get("first_name").toString() + " "
+                        + foundUser.getValue().get("last_name").toString();
             }
 
             Map<String, Object> returnMap = new HashMap<String, Object>();
 
             if (childFound) {
-                
-                boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code);
 
-                if (!sentPushNotification) {
-                    // Do something to keep trying to sent push notification to user.
-                }
-                
-                returnMap.put("status", "Your request has been sent to the person responsible of  " + childName + 
-                        ". You will receive a notification when this person approves your request.");
+//                boolean sentPushNotification = sentPushNotificationToUser(serviceProvider, to_user, from_user, child_code);
+
+//                if (!sentPushNotification) {
+                // Do something to keep trying to sent push notification to user.
+//                }
+
+                returnMap.put("status", "Your request has been sent to the person responsible, " + to_user_name + ", for " + childName
+                        + ". You will receive a notification when this person approves your request.");
             } else {
                 returnMap.put("status", "Sorry, child was not found in system.");
             }
@@ -116,6 +127,7 @@ public class RequestPermissionForChild implements CustomCodeMethod {
             HashMap<String, String> errMap = new HashMap<String, String>();
             errMap.put("error", "unknown");
             errMap.put("detail", e.toString());
+            errMap.put("result", result.get(0).toString());
             return new ResponseToProcess(HttpURLConnection.HTTP_INTERNAL_ERROR, errMap); // http 500 - internal server error
         }
     }
