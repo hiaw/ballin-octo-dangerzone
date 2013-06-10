@@ -17,6 +17,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.stackmob</groupId>
+            <artifactId>stackmob-customcode-dev_2.10</artifactId>
+            <version>0.1.7</version>
+        </dependency>
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>3.8.1</version>
@@ -25,10 +30,11 @@
         <dependency>
             <groupId>com.stackmob</groupId>
             <artifactId>customcode</artifactId>
-            <version>0.5.6</version>
-            <scope>provided</scope>
+            <version>0.6.1</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
+    
     <build>
         <plugins>
             <plugin>
@@ -37,7 +43,8 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.stillpig.babyonthecloud.customcode.EntryPointExtender</mainClass>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>com.stillpig.babyonthecloud.customcode_dev.LocalDevServer</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
